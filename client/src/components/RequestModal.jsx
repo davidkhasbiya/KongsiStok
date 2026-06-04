@@ -7,40 +7,38 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
   const [jumlah, setJumlah] = useState(1);
   const [satuan, setSatuan] = useState('Pcs');
   const [keterangan, setKeterangan] = useState('');
-  
+
   // Fitur AI dengan UI bersih
   const [aiText, setAiText] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
 
-  const handleAiParse = () => {
+  const handleAiParse = async () => {
     if (!aiText.trim()) return alert("Ketik cerita kendala stok warungmu terlebih dahulu!");
     setIsAiLoading(true);
 
-    setTimeout(() => {
-      const textLower = aiText.toLowerCase();
-      let detectedBarang = 'Es Batu Kristal';
-      let detectedSatuan = 'Kantong';
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/ai/parse', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ text: aiText })
+      });
 
-      if (textLower.includes('gas') || textLower.includes('lpg') || textLower.includes('tabung')) {
-        detectedBarang = 'Gas LPG 3kg';
-        detectedSatuan = 'Tabung';
-      } else if (textLower.includes('telur') || textLower.includes('telor')) {
-        detectedBarang = 'Telur Ayam';
-        detectedSatuan = 'Kg';
-      } else if (textLower.includes('minyak')) {
-        detectedBarang = 'Minyak Goreng';
-        detectedSatuan = 'Liter';
+      if (!response.ok) {
+        throw new Error('Gagal merespon dari server backend.');
       }
 
-      const matchAngka = textLower.match(/\d+/);
-      let detectedJumlah = 1;
-      if (matchAngka) detectedJumlah = parseInt(matchAngka[0]);
-
-      setNamaBarang(detectedBarang);
-      setJumlah(detectedJumlah);
-      setSatuan(detectedSatuan);
+      const data = await response.json()
+      setNamaBarang(data.nama_barang || '')
+      setJumlah(data.jumlah || 1)
+      setSatuan(data.satuan || 'Pcs')
+    } catch (error) {
+      console.error(error);
+      alert("Waduh, koneksi ke AI terganggu. Silakan isi manual dulu sementara waktu.");
+    } finally {
       setIsAiLoading(false);
-    }, 500);
+    }
   };
 
   const handleSubmit = (e) => {
@@ -59,13 +57,13 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
       <div className="bg-white border border-stone-200 rounded-xl w-full max-w-md shadow-lg flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-        
+
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-stone-150">
           <h2 className="text-sm font-bold text-stone-900">
             {tipe === 'BUTUH_STOK' ? 'Buat Cari Bantuan Stok' : 'Laporkan Kelebihan Stok'}
           </h2>
-          <button 
+          <button
             type="button"
             onClick={onClose}
             className="p-1 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-50 transition-colors cursor-pointer"
@@ -76,7 +74,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
 
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4 text-xs">
-          
+
           {/* 1. KOTAK INPUT AI (Desain Simpel & Flat) */}
           <div className="bg-stone-50 border border-stone-200 p-3 rounded-lg flex flex-col gap-2">
             <label className="block font-bold text-stone-700 flex items-center gap-1">
@@ -109,22 +107,20 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
             <button
               type="button"
               onClick={() => setTipe('BUTUH_STOK')}
-              className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors cursor-pointer ${
-                tipe === 'BUTUH_STOK' 
-                  ? 'bg-white text-stone-900 shadow-xs font-semibold' 
-                  : 'text-stone-500 hover:text-stone-900'
-              }`}
+              className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors cursor-pointer ${tipe === 'BUTUH_STOK'
+                ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                : 'text-stone-500 hover:text-stone-900'
+                }`}
             >
               Cari Bantuan
             </button>
             <button
               type="button"
               onClick={() => setTipe('KELEBIHAN_STOK')}
-              className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors cursor-pointer ${
-                tipe === 'KELEBIHAN_STOK' 
-                  ? 'bg-white text-stone-900 shadow-xs font-semibold' 
-                  : 'text-stone-500 hover:text-stone-900'
-              }`}
+              className={`flex-1 py-1.5 rounded-md font-medium text-center transition-colors cursor-pointer ${tipe === 'KELEBIHAN_STOK'
+                ? 'bg-white text-stone-900 shadow-xs font-semibold'
+                : 'text-stone-500 hover:text-stone-900'
+                }`}
             >
               Kelebihan Stok
             </button>
