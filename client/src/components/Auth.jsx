@@ -5,16 +5,16 @@ export default function Auth({ onAuthSuccess }) {
     const [whatsapp, setWhatsapp] = useState('');
     const [password, setPassword] = useState('');
     const [namaWarung, setNamaWarung] = useState('');
-    const [areaRt, setAreaRt] = useState('Komunitas RT 05 - Mampang');
+    const [alamat, setAlamat] = useState('');
 
     const handleSubmit = (e) => {
         if (e) e.preventDefault();
-        
+
         const mockUser = {
             id: "user_" + Date.now(),
             whatsapp: whatsapp || "08123456789",
             nama_warung: tab === 'login' ? "Warung Berkah (RT 05)" : (namaWarung || "Warung Baru"),
-            alamat: areaRt
+            alamat: alamat
         };
 
         if (typeof onAuthSuccess === 'function') {
@@ -51,24 +51,24 @@ export default function Auth({ onAuthSuccess }) {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">No. WhatsApp</label>
-                            <input 
-                                type="tel" 
+                            <input
+                                type="tel"
                                 value={whatsapp}
                                 onChange={(e) => setWhatsapp(e.target.value)}
-                                placeholder="08123456xxx" 
-                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900" 
-                                required 
+                                placeholder="08123456xxx"
+                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900"
+                                required
                             />
                         </div>
                         <div>
                             <label className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Kata Sandi</label>
-                            <input 
-                                type="password" 
+                            <input
+                                type="password"
                                 value={password}
                                 onChange={(e) => setPassword(e.target.value)}
-                                placeholder="••••••••" 
-                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900" 
-                                required 
+                                placeholder="••••••••"
+                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900"
+                                required
                             />
                         </div>
                         <button type="submit" className="w-full bg-green-900 hover:bg-zinc-800 text-white font-medium py-2.5 rounded-lg text-xs transition-colors cursor-pointer text-center mt-2">
@@ -79,35 +79,35 @@ export default function Auth({ onAuthSuccess }) {
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div>
                             <label className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Nama Warung</label>
-                            <input 
-                                type="text" 
+                            <input
+                                type="text"
                                 value={namaWarung}
                                 onChange={(e) => setNamaWarung(e.target.value)}
-                                placeholder="Contoh: Warung Berkah" 
-                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900" 
-                                required 
+                                placeholder="Contoh: Warung Berkah"
+                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900"
+                                required
                             />
                         </div>
                         <div>
-                            <label className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Wilayah Komunitas</label>
-                            <select 
-                                value={areaRt}
-                                onChange={(e) => setAreaRt(e.target.value)}
+                            <label className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">Alamat</label>
+                            <input
+                                type="text"
+                                value={alamat}
+                                onChange={(e) => setAlamat(e.target.value)}
+                                placeholder="Jl. Mawar No.07"
                                 className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900"
-                            >
-                                <option value="Komunitas RT 05 - Mampang">Komunitas RT 05 - Mampang</option>
-                                <option value="Komunitas RT 02 - Kemang">Komunitas RT 02 - Kemang</option>
-                            </select>
+                                required
+                            />
                         </div>
                         <div>
                             <label className="block text-[11px] font-medium text-zinc-500 uppercase tracking-wider mb-1.5">No. WhatsApp</label>
-                            <input 
-                                type="tel" 
+                            <input
+                                type="tel"
                                 value={whatsapp}
                                 onChange={(e) => setWhatsapp(e.target.value)}
-                                placeholder="08123456xxx" 
-                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900" 
-                                required 
+                                placeholder="08123456xxx"
+                                className="w-full border border-zinc-200 rounded-lg p-2.5 text-sm focus:border-zinc-950 focus:outline-none bg-zinc-50/50 text-zinc-900"
+                                required
                             />
                         </div>
                         <button type="submit" className="w-full bg-green-900 hover:bg-zinc-800 text-white font-medium py-2.5 rounded-lg text-xs transition-colors cursor-pointer text-center mt-2">

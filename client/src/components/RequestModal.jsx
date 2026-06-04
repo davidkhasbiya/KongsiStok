@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Send } from 'lucide-react';
+import { X, Send, Sparkles } from 'lucide-react';
 
 export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
   const [tipe, setTipe] = useState('BUTUH_STOK');
@@ -7,6 +7,41 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
   const [jumlah, setJumlah] = useState(1);
   const [satuan, setSatuan] = useState('Pcs');
   const [keterangan, setKeterangan] = useState('');
+  
+  // Fitur AI dengan UI bersih
+  const [aiText, setAiText] = useState('');
+  const [isAiLoading, setIsAiLoading] = useState(false);
+
+  const handleAiParse = () => {
+    if (!aiText.trim()) return alert("Ketik cerita kendala stok warungmu terlebih dahulu!");
+    setIsAiLoading(true);
+
+    setTimeout(() => {
+      const textLower = aiText.toLowerCase();
+      let detectedBarang = 'Es Batu Kristal';
+      let detectedSatuan = 'Kantong';
+
+      if (textLower.includes('gas') || textLower.includes('lpg') || textLower.includes('tabung')) {
+        detectedBarang = 'Gas LPG 3kg';
+        detectedSatuan = 'Tabung';
+      } else if (textLower.includes('telur') || textLower.includes('telor')) {
+        detectedBarang = 'Telur Ayam';
+        detectedSatuan = 'Kg';
+      } else if (textLower.includes('minyak')) {
+        detectedBarang = 'Minyak Goreng';
+        detectedSatuan = 'Liter';
+      }
+
+      const matchAngka = textLower.match(/\d+/);
+      let detectedJumlah = 1;
+      if (matchAngka) detectedJumlah = parseInt(matchAngka[0]);
+
+      setNamaBarang(detectedBarang);
+      setJumlah(detectedJumlah);
+      setSatuan(detectedSatuan);
+      setIsAiLoading(false);
+    }, 500);
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -42,6 +77,33 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4 text-xs">
           
+          {/* 1. KOTAK INPUT AI (Desain Simpel & Flat) */}
+          <div className="bg-stone-50 border border-stone-200 p-3 rounded-lg flex flex-col gap-2">
+            <label className="block font-bold text-stone-700 flex items-center gap-1">
+              <Sparkles className="w-3.5 h-3.5 text-stone-600" />
+              <span>Isi Otomatis Pakai Cerita (AI)</span>
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={aiText}
+                onChange={(e) => setAiText(e.target.value)}
+                placeholder="Contoh: telur lagi habis nih butuh 5 kg..."
+                className="flex-1 border border-stone-200 rounded-md p-2 bg-white text-stone-900 focus:outline-none focus:border-stone-400 text-xs"
+              />
+              <button
+                type="button"
+                onClick={handleAiParse}
+                disabled={isAiLoading}
+                className="bg-stone-900 hover:bg-stone-800 text-white px-3 rounded-md font-medium transition-colors text-xs shrink-0 cursor-pointer"
+              >
+                {isAiLoading ? 'Membaca...' : 'Urai'}
+              </button>
+            </div>
+          </div>
+
+          <div className="border-t border-dashed border-stone-200 my-1"></div>
+
           {/* Tipe Selector Tab */}
           <div className="flex bg-stone-100 p-1 rounded-lg gap-1">
             <button
@@ -75,7 +137,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
               type="text"
               value={namaBarang}
               onChange={(e) => setNamaBarang(e.target.value)}
-              placeholder="Contoh: Gas LPG 3kg, Es Batu Kristal"
+              placeholder="Gas LPG 3kg, Es Batu, dll."
               className="w-full border border-stone-200 rounded-lg p-2.5 bg-white text-stone-900 focus:outline-none focus:border-stone-400 transition-colors"
               required
             />
@@ -100,7 +162,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
                 type="text"
                 value={satuan}
                 onChange={(e) => setSatuan(e.target.value)}
-                placeholder="Contoh: Tabung, Kantong, Pcs"
+                placeholder="Tabung, Kg, Pcs"
                 className="w-full border border-stone-200 rounded-lg p-2.5 bg-white text-stone-900 focus:outline-none focus:border-stone-400 transition-colors"
                 required
               />
@@ -113,8 +175,8 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
             <textarea
               value={keterangan}
               onChange={(e) => setKeterangan(e.target.value)}
-              placeholder="Beri detail singkat (misal: jaminan aman, bisa barter, tebus murah agen)"
-              className="w-full border border-stone-200 rounded-lg p-2.5 bg-white text-stone-900 focus:outline-none focus:border-stone-400 transition-colors h-20 resize-none"
+              placeholder="Detail singkat (misal: jaminan aman, bisa barter)"
+              className="w-full border border-stone-200 rounded-lg p-2.5 bg-white text-stone-900 focus:outline-none focus:border-stone-400 transition-colors h-16 resize-none"
             />
           </div>
 
@@ -131,7 +193,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="flex-1 bg-green-900 hover:bg-stone-800 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 bg-stone-950 hover:bg-stone-800 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Mengirim...' : 'Kirim'}</span>
