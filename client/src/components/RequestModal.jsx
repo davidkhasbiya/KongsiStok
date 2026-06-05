@@ -12,6 +12,9 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
   const [aiText, setAiText] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
 
+  // 1. TAMBAHKAN STATE UNTUK isSaving DI SINI
+  const [isSaving, setIsSaving] = useState(false);
+
   const handleAiParse = async () => {
     if (!aiText.trim()) return alert("Ketik cerita kendala stok warungmu terlebih dahulu!");
     setIsAiLoading(true);
@@ -19,20 +22,16 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
     try {
       const response = await fetch('http://127.0.0.1:5000/api/ai/parse', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text: aiText })
       });
 
-      if (!response.ok) {
-        throw new Error('Gagal merespon dari server backend.');
-      }
+      if (!response.ok) throw new Error('Gagal merespon dari server backend.');
 
-      const data = await response.json()
-      setNamaBarang(data.nama_barang || '')
-      setJumlah(data.jumlah || 1)
-      setSatuan(data.satuan || 'Pcs')
+      const data = await response.json();
+      setNamaBarang(data.nama_barang || '');
+      setJumlah(data.jumlah || 1);
+      setSatuan(data.satuan || 'Pcs');
     } catch (error) {
       console.error(error);
       alert("Waduh, koneksi ke AI terganggu. Silakan isi manual dulu sementara waktu.");
@@ -41,18 +40,46 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
     }
   };
 
-  const handleSubmit = (e) => {
+  // 2. TAMBAHKAN KEYWORD async DI SINI
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    
     if (!namaBarang.trim()) return;
+    setIsSaving(true);
 
-    onSubmit({
-      tipe,
-      nama_barang: namaBarang,
-      jumlah,
-      satuan,
-      keterangan
-    });
+    try {
+      const response = await fetch('http://127.0.0.1:5000/api/stok/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: 1, // Hardcode sementara
+          nama_barang: namaBarang,
+          jumlah: jumlah,
+          satuan: satuan,
+          keterangan: keterangan
+        })
+      });
+
+      if (!response.ok) throw new Error('Gagal menyimpan data ke database server.');
+
+      const result = await response.json();
+      alert(result.message);
+
+      if (onSubmit) {
+        onSubmit({ tipe, nama_barang: namaBarang, jumlah, satuan, keterangan });
+      }
+
+      onClose();
+    } catch (error) {
+      console.error(error);
+      alert("Gagal menginput data ke database, periksa terminal backend kamu.");
+    } finally {
+      setIsSaving(false);
+    }
   };
+
+  // 3. GANTI parentSubmitting MENJADI isSubmitting SIFATNYA DARI PROPS
+  const statusLoading = isAiLoading || isSaving || isSubmitting;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/40 backdrop-blur-xs">
@@ -75,7 +102,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-5 flex flex-col gap-4 text-xs">
 
-          {/* 1. KOTAK INPUT AI (Desain Simpel & Flat) */}
+          {/* KOTAK INPUT AI */}
           <div className="bg-stone-50 border border-stone-200 p-3 rounded-lg flex flex-col gap-2">
             <label className="block font-bold text-stone-700 flex items-center gap-1">
               <Sparkles className="w-3.5 h-3.5 text-stone-600" />
@@ -181,18 +208,18 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
             <button
               type="button"
               onClick={onClose}
-              disabled={isSubmitting}
+              disabled={statusLoading}
               className="flex-1 border border-stone-200 text-stone-600 py-2.5 rounded-lg font-medium hover:bg-stone-50 transition-colors cursor-pointer text-center"
             >
               Batal
             </button>
             <button
               type="submit"
-              disabled={isSubmitting}
+              disabled={statusLoading}
               className="flex-1 bg-stone-950 hover:bg-stone-800 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>{isSubmitting ? 'Mengirim...' : 'Kirim'}</span>
+              <span>{isSaving ? 'Menyimpan...' : 'Kirim'}</span>
             </button>
           </div>
 
