@@ -1,18 +1,16 @@
 import React, { useState } from 'react';
 import { X, Send, Sparkles } from 'lucide-react';
 
-export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
+// PERBAIKAN: Terima props 'currentUser' dari App.jsx
+export default function RequestModal({ currentUser, onClose, onSubmit, isSubmitting }) {
   const [tipe, setTipe] = useState('BUTUH_STOK');
   const [namaBarang, setNamaBarang] = useState('');
   const [jumlah, setJumlah] = useState(1);
   const [satuan, setSatuan] = useState('Pcs');
   const [keterangan, setKeterangan] = useState('');
 
-  // Fitur AI dengan UI bersih
   const [aiText, setAiText] = useState('');
   const [isAiLoading, setIsAiLoading] = useState(false);
-
-  // 1. TAMBAHKAN STATE UNTUK isSaving DI SINI
   const [isSaving, setIsSaving] = useState(false);
 
   const handleAiParse = async () => {
@@ -40,10 +38,9 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
     }
   };
 
-  // 2. TAMBAHKAN KEYWORD async DI SINI
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!namaBarang.trim()) return;
     setIsSaving(true);
 
@@ -52,7 +49,8 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: 1, // Hardcode sementara
+          user_id: currentUser?.id || 1, // <--- PERBAIKAN: Menggunakan ID asli dari user yang login
+          tipe: tipe,                    // <--- PERBAIKAN: Sekarang variabel tipe ikut dikirim ke DB!
           nama_barang: namaBarang,
           jumlah: jumlah,
           satuan: satuan,
@@ -66,7 +64,8 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
       alert(result.message);
 
       if (onSubmit) {
-        onSubmit({ tipe, nama_barang: namaBarang, jumlah, satuan, keterangan });
+        // Memicu App.jsx untuk melakukan fetch data teranyar
+        onSubmit();
       }
 
       onClose();
@@ -78,7 +77,6 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
     }
   };
 
-  // 3. GANTI parentSubmitting MENJADI isSubmitting SIFATNYA DARI PROPS
   const statusLoading = isAiLoading || isSaving || isSubmitting;
 
   return (
@@ -120,7 +118,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
                 type="button"
                 onClick={handleAiParse}
                 disabled={isAiLoading}
-                className="bg-stone-900 hover:bg-stone-800 text-white px-3 rounded-md font-medium transition-colors text-xs shrink-0 cursor-pointer"
+                className="bg-green-900 hover:bg-stone-800 text-white px-3 rounded-md font-medium transition-colors text-xs shrink-0 cursor-pointer"
               >
                 {isAiLoading ? 'Membaca...' : 'Urai'}
               </button>
@@ -216,7 +214,7 @@ export default function RequestModal({ onClose, onSubmit, isSubmitting }) {
             <button
               type="submit"
               disabled={statusLoading}
-              className="flex-1 bg-stone-950 hover:bg-stone-800 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              className="flex-1 bg-green-900 hover:bg-stone-800 text-white py-2.5 rounded-lg font-medium transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{isSaving ? 'Menyimpan...' : 'Kirim'}</span>

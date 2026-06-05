@@ -3,12 +3,19 @@ import { MessageCircle, Trash2, CheckCircle2, Clock } from "lucide-react";
 
 export default function FeedItem({ feed, currentUser, onToggleStatus, onDelete }) {
     const isOwner = currentUser?.id === feed.user_id;
-    const isButuhStok = feed.tipe === "BUTUH_STOK";
+    
+    // 🌟 PERBAIKAN 1: Tambahkan ?.trim() agar akurat mendeteksi tipe dari DB
+    const isButuhStok = feed.tipe?.trim() === "BUTUH_STOK"; 
 
+    // 🌟 PERBAIKAN 2: Ubah "id-ID" jadi "en-GB" supaya format jam pakai titik dua (:) bukan titik (.)
     const formatTime = (isoString) => {
         const date = new Date(isoString);
-        return date.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+        return date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     };
+
+    // 🌟 PERBAIKAN 3: Amankan pengecekan status dengan ?.trim()
+    const isTersedia = feed.status?.trim() === "TERSEDIA";
+    const isTerpenuhi = feed.status?.trim() === "TERPENUHI";
 
     return (
         <div className="bg-white border border-stone-200 rounded-xl p-5 flex flex-col justify-between hover:border-stone-300 transition-colors">
@@ -20,9 +27,9 @@ export default function FeedItem({ feed, currentUser, onToggleStatus, onDelete }
                         {isButuhStok ? "Cari Stok" : "Kelebihan Stok"}
                     </span>
                     <span className={`text-[10px] font-medium ${
-                        feed.status === "TERSEDIA" ? "text-emerald-600" : "text-stone-400 font-normal"
+                        isTersedia ? "text-emerald-600" : "text-stone-400 font-normal"
                     }`}>
-                        {feed.status === "TERSEDIA" ? "● Aktif" : "Selesai"}
+                        {isTersedia ? "● Aktif" : "Selesai"}
                     </span>
                 </div>
 
@@ -46,9 +53,9 @@ export default function FeedItem({ feed, currentUser, onToggleStatus, onDelete }
                     {isOwner ? (
                         <>
                             <button
-                                onClick={() => onToggleStatus(feed.id, feed.status)}
+                                onClick={() => onToggleStatus(feed.id, feed.status?.trim())} // 🌟 Tambahkan .trim() di sini juga
                                 className={`p-1.5 rounded-md hover:bg-stone-100 transition-colors cursor-pointer ${
-                                    feed.status === "TERPENUHI" ? "text-emerald-600" : "text-stone-400"
+                                    isTerpenuhi ? "text-emerald-600" : "text-stone-400"
                                 }`}
                                 title="Ubah Status"
                             >

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react"; // Tambahkan useEffect di sini
 import { Plus } from "lucide-react";
 import Header from "./components/Header";
 import Auth from "./components/Auth";
@@ -36,12 +36,43 @@ const INITIAL_FEEDS = [
 ];
 
 export default function App() {
-    const [currentUser, setCurrentUser] = useState(null);
-    const [token, setToken] = useState(null);
-    const [feeds, setFeeds] = useState(INITIAL_FEEDS);
+    const [currentUser, setCurrentUser] = useState(() => {
+        const savedUser = localStorage.getItem("user");
+        return savedUser ? JSON.parse(savedUser) : null;
+    });
+    const [token, setToken] = useState(() => {
+        return localStorage.getItem("token") || null;
+    });
+
+    // Set default awal ke array kosong, nanti kita isi dari database
+    const [feeds, setFeeds] = useState([]);
     const [activeFilter, setActiveFilter] = useState('SEMUA');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // ==========================================
+    // FUNGSI BARU: Ambil data dari Database (GET)
+    // ==========================================
+    const fetchFeeds = async () => {
+        try {
+            // Sesuaikan url endpoint GET ini dengan yang ada di server backend-mu (misal: /api/stok)
+            const response = await fetch('http://127.0.0.1:5000/api/stok');
+            if (!response.ok) throw new Error('Gagal mengambil data dari database.');
+
+            const data = await response.json();
+            setFeeds(data); // Simpan data dari database ke state
+        } catch (error) {
+            console.error("Gagal load database, beralih ke dummy:", error);
+            setFeeds(INITIAL_FEEDS); // Backup jika backend belum siap / error
+        }
+    };
+
+    // Jalankan fungsi fetchFeeds otomatis saat aplikasi dibuka / di-refresh
+    useEffect(() => {
+        if (currentUser) {
+            fetchFeeds();
+        }
+    }, [currentUser]);
 
     const handleAuthSuccess = (user, userToken) => {
         setCurrentUser(user);
@@ -51,45 +82,60 @@ export default function App() {
     const handleLogout = () => {
         setCurrentUser(null);
         setToken(null);
+        localStorage.removeItem("user");
+        localStorage.removeItem("token");
     };
 
-    const handleCreateFeed = async (formData) => {
-        if (!currentUser) return;
-        setIsSubmitting(true);
-
-        const newFeed = {
-            id: Date.now().toString(),
-            user_id: currentUser.id,
-            whatsapp: currentUser.whatsapp,
-            nama_warung: currentUser.nama_warung,
-            nama_barang: formData.nama_barang,
-            jumlah: formData.jumlah,
-            satuan: formData.satuan,
-            keterangan: formData.keterangan,
-            tipe: formData.tipe,
-            status: "TERSEDIA",
-            created_at: new Date().toISOString()
-        };
-
-        setFeeds(prev => [newFeed, ...prev]);
-        setIsSubmitting(false);
-        setIsModalOpen(false);
+    const handleCreateFeed = async () => {
+        // Setelah sukses input dari modal, langsung panggil fetchFeeds() 
+        // supaya data terbaru beserta ID asli dari database langsung turun ke halaman utama
+        fetchFeeds();
     };
 
-    const handleToggleStatus = (id, currentStatus) => {
-        setFeeds(prev => prev.map(f => f.id === id ? {
-            ...f,
-            status: currentStatus === "TERSEDIA" ? "TERPENUHI" : "TERSEDIA"
-        } : f));
+    // Fungsi untuk handle hapus data secara permanen
+    const handleDelete = async (id) => {
+        if (window.confirm("Apakah Anda yakin ingin menghapus kiriman stok ini?")) {
+            try {
+                const response = await fetch(`http://localhost:5000/api/stok/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    // Update state frontend agar laporannya langsung hilang dari layar
+                    setFeeds(feeds.filter(feed => feed.id !== id));
+                    alert("Data berhasil dihapus!");
+                }
+            } catch (error) {
+                console.error("Gagal menghapus data:", error);
+            }
+        }
     };
 
-    const handleDelete = (id) => {
-        setFeeds(prev => prev.filter(f => f.id !== id));
+    // Fungsi untuk handle ceklist (mengubah status menjadi SELESAI)
+    const handleToggleStatus = async (id, currentStatus) => {
+        const newStatus = currentStatus === 'SELESAI' ? 'TERSEDIA' : 'SELESAI';
+
+        try {
+            const response = await fetch(`http://localhost:5000/api/stok/${id}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status: newStatus })
+            });
+
+            if (response.ok) {
+                // Update state frontend agar warna komponen langsung berubah secara realtime
+                setFeeds(feeds.map(feed => feed.id === id ? { ...feed, status: newStatus } : feed));
+            }
+        } catch (error) {
+            console.error("Gagal memperbarui status:", error);
+        }
     };
 
+    // ✅ KODE BARU (Bebas Spasi Gaib & Anti-Gagal)
     const filteredFeeds = feeds.filter(feed => {
         if (activeFilter === 'SEMUA') return true;
-        return feed.tipe === activeFilter;
+        // ?.trim() berfungsi menghapus spasi kosong di awal/akhir teks dari database jika ada
+        return feed.tipe?.trim() === activeFilter;
     });
 
     return (
@@ -112,11 +158,10 @@ export default function App() {
                                 <button
                                     key={tab.key}
                                     onClick={() => setActiveFilter(tab.key)}
-                                    className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md transition-colors cursor-pointer text-center ${
-                                        activeFilter === tab.key
-                                            ? "bg-white text-stone-900 border border-stone-200/50 shadow-xs font-semibold"
-                                            : "text-stone-500 hover:text-stone-900"
-                                    }`}
+                                    className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md transition-colors cursor-pointer text-center ${activeFilter === tab.key
+                                        ? "bg-white text-stone-900 border border-stone-200/50 shadow-xs font-semibold"
+                                        : "text-stone-500 hover:text-stone-900"
+                                        }`}
                                 >
                                     {tab.label}
                                 </button>
@@ -154,6 +199,7 @@ export default function App() {
 
             {isModalOpen && (
                 <RequestModal
+                    currentUser={currentUser} // <--- PERUBAHAN: Kirim data user yang sedang login ke modal
                     onClose={() => setIsModalOpen(false)}
                     onSubmit={handleCreateFeed}
                     isSubmitting={isSubmitting}

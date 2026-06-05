@@ -6,7 +6,7 @@ export default function Auth({ onAuthSuccess }) {
     const [password, setPassword] = useState('');
     const [namaWarung, setNamaWarung] = useState('');
     const [alamat, setAlamat] = useState(''); // Akan dikirim sebagai 'komunitas' ke database
-    
+
     // Tambahan state untuk loading dan error
     const [isLoading, setIsLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState('');
@@ -41,27 +41,28 @@ export default function Auth({ onAuthSuccess }) {
                 setPassword(''); // Kosongkan password demi keamanan
 
             } else {
-                // ALUR 2: PROSES MASUK (LOGIN)
-                // Catatan: Anda harus membuat route /api/users/login di backend nanti
-                /*
+                // ALUR 2: PROSES MASUK (LOGIN) ASLI
                 const response = await fetch('http://localhost:5000/api/users/login', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ no_wa: whatsapp, password: password })
+                    body: JSON.stringify({
+                        no_wa: whatsapp,
+                        password: password
+                    })
                 });
+
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.error);
-                
-                // Meneruskan data user asli dari database ke fungsi utama App.js
+
+                if (!response.ok) {
+                    throw new Error(data.error || 'Gagal masuk');
+                }
+
+                // Opsional: Simpan ke localStorage agar jika halaman di-refresh user tidak log out otomatis
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('user', JSON.stringify(data.user));
+
+                // Kirim data user nyata dan token asli dari database ke App.js
                 onAuthSuccess(data.user, data.token);
-                */
-               
-                // SEMENTARA, kita gunakan simulasi login dulu sampai backend login Anda siap:
-                alert("Simulasi Login Berhasil. Menuju Dashboard...");
-                onAuthSuccess(
-                    { id: 1, whatsapp: whatsapp, nama_warung: "Warung Tester" }, 
-                    "token-sementara"
-                );
             }
         } catch (err) {
             setErrorMsg(err.message);
@@ -78,7 +79,7 @@ export default function Auth({ onAuthSuccess }) {
             </div>
 
             <div className="bg-white border border-zinc-200 rounded-xl p-6 shadow-sm">
-                
+
                 {/* Menampilkan pesan error jika ada */}
                 {errorMsg && (
                     <div className="mb-4 p-2 bg-red-50 text-red-600 text-xs text-center rounded-md border border-red-100">

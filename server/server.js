@@ -1,12 +1,12 @@
 const express = require('express');
-const cors = require('cors')
+const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const sql = require('mssql');
 require('dotenv').config();
 
-const app = express()
-app.use(cors())
-app.use(express.json())
+const app = express();
+app.use(cors());
+app.use(express.json());
 
 console.log("Kunci Gemini Terdeteksi:", process.env.GEMINI_API_KEY ? "YA, AMAN ✅" : "BELUM TERBACA ❌");
 
@@ -16,10 +16,12 @@ const dbConfig = {
     server: process.env.DB_SERVER,
     database: process.env.DB_DATABASE,
     options: {
-        encrypt: false, // Set false untuk local development (SSMS)
-        trustServerCertificate: true // Wajib true agar tidak error sertifikat SSL di lokal
+        encrypt: false,
+        trustServerCertificate: true,
+        useUTC: false
     }
-}
+};
+const jwt = require('jsonwebtoken');
 
 async function connectDB() {
     try {
@@ -31,13 +33,80 @@ async function connectDB() {
 }
 connectDB();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+app.post('/api/users/login', async (req, res) => {
+    const { no_wa, password } = req.body;
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request()
+            .input('no_wa', sql.VarChar, no_wa)
+            .query('SELECT * FROM users WHERE no_wa = @no_wa');
+
+        if (result.recordset.length === 0) {
+            return res.status(404).json({ error: 'Nomor WhatsApp tidak terdaftar!' });
+        }
+
+        const user = result.recordset[0];
+        if (user.password !== password) {
+            return res.status(401).json({ error: 'Kata sandi salah!' });
+        }
+
+        const token = jwt.sign(
+            { id: user.id, no_wa: user.no_wa },
+            process.env.JWT_SECRET || 'rahasia_kongsi_stok',
+            { expiresIn: '24h' }
+        );
+
+        res.json({
+            message: 'Login berhasil',
+            token: token,
+            user: {
+                id: user.id,
+                nama_warung: user.nama_warung,
+                komunitas: user.komunitas,
+                no_wa: user.no_wa
+            }
+        });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ error: 'Terjadi kesalahan pada server database' });
+    }
+});
+
+app.get('/api/stok', async (req, res) => {
+    try {
+        const pool = await sql.connect(dbConfig);
+        const result = await pool.request().query(`
+            SELECT 
+                s.id, 
+                s.user_id, 
+                s.nama_barang, 
+                s.jumlah, 
+                s.satuan, 
+                s.keterangan, 
+                s.created_at,
+                s.tipe,
+                s.status,
+                u.nama_warung, 
+                u.no_wa AS whatsapp      
+            FROM stok_requests s
+            INNER JOIN users u ON s.user_id = u.id
+            ORDER BY s.id DESC
+        `);
+        res.json(result.recordset);
+    } catch (error) {
+        console.error('SQL Server GET Error:', error);
+        res.status(500).json({ error: 'Gagal mengambil data stok dari database' });
+    }
+});
 
 app.post('/api/ai/parse', async (req, res) => {
-    const { text } = req.body
+    const { text } = req.body;
 
     if (!text) {
-        return res.status(400).json({ error: 'Cerita kendala stok tidak boleh kosong!' })
+        return res.status(400).json({ error: 'Cerita kendala stok tidak boleh kosong!' });
     }
 
     try {
@@ -53,20 +122,17 @@ app.post('/api/ai/parse', async (req, res) => {
         
         Ekstrak cerita tersebut menjadi objek JSON dengan struktur wajib seperti di bawah ini:
         {
-        "nama_barang": "Nama barang yang jelas dan rapi (kapitalisasi sewajarnya)",
+        "nama_barang": "Nama barang yang jelas dan rapi",
         "jumlah": angka_bulat_saja,
-        "satuan": "Satuan barang (contoh: Kg, Tabung, Pcs, Liter, Bungkus, Dus, Bal, Karton)"
+        "satuan": "Satuan barang"
         }
         
         Aturan Tambahan:
-        1. Jika satuan tidak disebutkan secara eksplisit di teks cerita, tebak satuan yang paling umum/masuk akal (Misal: telur -> Kg, gas -> Tabung, minyak -> Liter, mie -> Dus/Bungkus).
+        1. Jika satuan tidak disebutkan, tebak yang paling umum.
         2. Jika jumlah tidak terdeteksi, berikan nilai default 1.`;
 
-        const result = await model.generateContent(prompt)
-        const responseText = result.response.text()
-
-        const parsedData = JSON.parse(responseText)
-        res.json(parsedData)
+        const result = await model.generateContent(prompt);
+        res.json(JSON.parse(result.response.text()));
     } catch (error) {
         console.error('Gemini API Error:', error);
         res.status(500).json({ error: 'Gagal memproses data menggunakan AI Studio' });
@@ -74,29 +140,25 @@ app.post('/api/ai/parse', async (req, res) => {
 });
 
 app.post('/api/stok/add', async (req, res) => {
-    // 1. Ambil data dari req.body (Tambahkan 'status' agar bisa menangkap tipe stok dari frontend)
-    const { user_id, nama_barang, jumlah, satuan, keterangan, status } = req.body;
+    const { user_id, nama_barang, jumlah, satuan, keterangan, tipe } = req.body;
 
     if (!nama_barang || !jumlah) {
         return res.status(400).json({ error: 'Nama barang dan jumlah wajib diisi!' });
     }
 
     try {
-        // 2. Hapus 'transaction' dari kurung jika koneksi biasa
         const request = new sql.Request();
-
-        // 3. Pastikan parameter ketiga KONSISTEN dengan variabel di atas (gunakan nama_barang, bukan namaBarang)
-        request.input('user_id', sql.Int, user_id || 1); // fallback ke 1 jika kosong
+        request.input('user_id', sql.Int, user_id || 1);
         request.input('nama_barang', sql.VarChar, nama_barang);
         request.input('jumlah', sql.Int, jumlah);
         request.input('satuan', sql.VarChar, satuan || 'Pcs');
-        request.input('status', sql.VarChar, status || 'BUTUH_STOK'); // Nilai default jika dari UI tidak mengirim
+        request.input('tipe', sql.VarChar, tipe || 'BUTUH_STOK');
+        request.input('status', sql.VarChar, 'TERSEDIA');
         request.input('keterangan', sql.NVarChar, keterangan || null);
 
-        // 4. Eksekusi query T-SQL standar
         await request.query(`
-            INSERT INTO stok_requests (user_id, nama_barang, jumlah, satuan, status, keterangan) 
-            VALUES (@user_id, @nama_barang, @jumlah, @satuan, @status, @keterangan)
+            INSERT INTO stok_requests (user_id, nama_barang, jumlah, satuan, tipe, status, keterangan) 
+            VALUES (@user_id, @nama_barang, @jumlah, @satuan, @tipe, @status, @keterangan)
         `);
 
         res.json({ success: true, message: 'Data stok berhasil disimpan ke database!' });
@@ -118,7 +180,7 @@ app.post('/api/users/register', async (req, res) => {
         request.input('nama_warung', sql.VarChar, nama_warung);
         request.input('komunitas', sql.VarChar, komunitas || null);
         request.input('no_wa', sql.VarChar, no_wa);
-        request.input('password', sql.VarChar, password); // Ingat: di dunia nyata password harus di-hash (misal pakai bcrypt)
+        request.input('password', sql.VarChar, password);
 
         await request.query(`
             INSERT INTO users (nama_warung, komunitas, no_wa, password) 
@@ -129,6 +191,42 @@ app.post('/api/users/register', async (req, res) => {
     } catch (error) {
         console.error('SQL Server Error (Users):', error);
         res.status(500).json({ error: 'Gagal menyimpan data user ke database' });
+    }
+});
+
+// 1. ENDPOINT UNTUK TOMBOL CEKLIST (UBAH STATUS JADI SELESAI)
+app.put('/api/stok/:id/status', async (req, res) => {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('id', sql.Int, id)
+            .input('status', sql.VarChar, status || 'SELESAI')
+            .query('UPDATE stok_requests SET status = @status WHERE id = @id');
+
+        res.json({ success: true, message: 'Status kiriman stok berhasil diperbarui!' });
+    } catch (error) {
+        console.error('SQL Update Status Error:', error);
+        res.status(500).json({ error: 'Gagal memperbarui status di database' });
+    }
+});
+
+// 2. ENDPOINT UNTUK TOMBOL HAPUS (DELETE BERDASARKAN ID)
+app.delete('/api/stok/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const pool = await sql.connect(dbConfig);
+        await pool.request()
+            .input('id', sql.Int, id)
+            .query('DELETE FROM stok_requests WHERE id = @id'); // KODE SUDAH DIPERBAIKI
+
+        res.json({ success: true, message: 'Kiriman stok berhasil dihapus dari database!' });
+    } catch (error) {
+        console.error('SQL Delete Error:', error);
+        res.status(500).json({ error: 'Gagal menghapus data dari database' });
     }
 });
 
