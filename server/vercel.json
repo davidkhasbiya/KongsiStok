@@ -1,15 +1,24 @@
 {
-    "version": 2,
-    "builds": [
+    "rewrites": [
         {
-            "src": "api/*.js",
-            "use": "@vercel/node"
-        }
-    ],
-    "routes": [
+            "source": "/api/stok/:id",
+            "destination": "/api/stok.js"
+        },
         {
-            "src": "/api/(.*)",
-            "dest": "api/$1.js"
+            "source": "/api/stok",
+            "destination": "/api/stok.js"
+        },
+        {
+            "source": "/api/register",
+            "destination": "/api/register.js"
+        },
+        {
+            "source": "/api/login",
+            "destination": "/api/login.js"
+        },
+        {
+            "source": "/api/ai",
+            "destination": "/api/ai.js"
         }
     ]
 }

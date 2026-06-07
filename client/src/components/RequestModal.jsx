@@ -22,7 +22,7 @@ export default function RequestModal({ currentUser, onClose, onSubmit, isSubmitt
       // Mengambil token yang disimpan di localStorage setelah login berhasil
       const token = localStorage.getItem('token');
 
-      const response = await fetch('http://127.0.0.1:5000/api/ai/parse', {
+      const response = await fetch('/api/ai', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

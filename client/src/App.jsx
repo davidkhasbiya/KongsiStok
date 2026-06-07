@@ -27,7 +27,7 @@ export default function App() {
         try {
             const komunitasUser = currentUser.komunitas;
 
-            const response = await fetch(`http://127.0.0.1:5000/api/stok?komunitas=${encodeURIComponent(komunitasUser)}`, {
+            const response = await fetch(`/api/stok?komunitas=${encodeURIComponent(komunitasUser)}`, {
                 method: 'GET',
                 headers: {
                     'Authorization': `Bearer ${token}` // 🛡️ Kirim token agar diizinkan melihat data
@@ -78,7 +78,7 @@ export default function App() {
     const handleDelete = async (id) => {
         if (window.confirm("Apakah Anda yakin ingin menghapus kiriman stok ini?")) {
             try {
-                const response = await fetch(`http://127.0.0.1:5000/api/stok/${id}`, {
+                const response = await fetch(`/api/stok/${id}`, {
                     method: 'DELETE',
                     headers: {
                         'Authorization': `Bearer ${token}` // 🛡️ Kirim token agar diizinkan menghapus
@@ -103,7 +103,7 @@ export default function App() {
         const newStatus = currentStatus === 'SELESAI' ? 'TERSEDIA' : 'SELESAI';
 
         try {
-            const response = await fetch(`http://127.0.0.1:5000/api/stok/${id}/status`, {
+            const response = await fetch(`/api/stok/${id}/status`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
