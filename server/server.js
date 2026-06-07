@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
-const sql = require('mssql');
+const { Pool } = require('pg'); // 1. Menggunakan Pool dari library 'pg'
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const helmet = require('helmet');
@@ -22,26 +22,22 @@ const limiter = rateLimit({
 app.use('/api/users/login', limiter);
 app.use('/api/users/register', limiter);
 
-console.log("Kunci Gemini Terdeteksi:", process.env.GEMINI_API_KEY ? "YA, AMAN " : "BELUM TERBACA ");
+console.log("Kunci Gemini Terdeteksi:", process.env.GEMINI_API_KEY ? "YA, AMAN 🚀" : "BELUM TERBACA ⚠️");
 
-const dbConfig = {
-    user: process.env.DB_USER,
-    password: process.env.DB_PASSWORD,
-    server: process.env.DB_SERVER,
-    database: process.env.DB_DATABASE,
-    options: {
-        encrypt: false,
-        trustServerCertificate: true,
-        useUTC: false
+// KONEKSI POSTGRESQL (Menggunakan Connection String)
+const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: {
+        rejectUnauthorized: false
     }
-};
+});
 
 async function connectDB() {
     try {
-        await sql.connect(dbConfig);
-        console.log("Database KongsiStok Terhubung Sukses! ");
+        await pool.connect();
+        console.log("Database KongsiStok Terhubung Sukses (PostgreSQL)! 🐘");
     } catch (err) {
-        console.error("Gagal Koneksi ke Database SQL Server: \n", err.message);
+        console.error("Gagal Koneksi ke Database PostgreSQL: \n", err.message);
     }
 }
 connectDB();
@@ -75,24 +71,21 @@ app.post('/api/users/register', async (req, res) => {
     }
 
     try {
-        // Enkripsi password asli menjadi kode acak aman
         const saltRounds = 10;
         const hashedPassword = await bcrypt.hash(password, saltRounds);
 
-        const request = new sql.Request();
-        request.input('nama_warung', sql.VarChar, nama_warung);
-        request.input('komunitas', sql.VarChar, komunitas || null);
-        request.input('no_wa', sql.VarChar, no_wa);
-        request.input('password', sql.VarChar, hashedPassword); // Simpan hasil enkripsi ke DB
-
-        await request.query(`
+        // 3. Menggunakan parameter $1, $2, dst. untuk PostgreSQL
+        const queryStr = `
             INSERT INTO users (nama_warung, komunitas, no_wa, password) 
-            VALUES (@nama_warung, @komunitas, @no_wa, @password)
-        `);
+            VALUES ($1, $2, $3, $4)
+        `;
+        const values = [nama_warung, komunitas || null, no_wa, hashedPassword];
+
+        await pool.query(queryStr, values);
 
         res.json({ success: true, message: 'User berhasil didaftarkan!' });
     } catch (error) {
-        console.error('SQL Server Error (Users):', error);
+        console.error('PostgreSQL Error (Users Register):', error);
         res.status(500).json({ error: 'Gagal menyimpan data user ke database' });
     }
 });
@@ -101,18 +94,16 @@ app.post('/api/users/login', async (req, res) => {
     const { no_wa, password } = req.body;
 
     try {
-        const pool = await sql.connect(dbConfig);
-        const result = await pool.request()
-            .input('no_wa', sql.VarChar, no_wa)
-            .query('SELECT * FROM users WHERE no_wa = @no_wa');
+        // 4. Query select menggunakan pg pool
+        const result = await pool.query('SELECT * FROM users WHERE no_wa = $1', [no_wa]);
 
-        if (result.recordset.length === 0) {
+        // PostgreSQL mengembalikan data lewat properti .rows
+        if (result.rows.length === 0) {
             return res.status(404).json({ error: 'Nomor WhatsApp tidak terdaftar!' });
         }
 
-        const user = result.recordset[0];
+        const user = result.rows[0];
 
-        // Membandingkan password teks biasa dari input dengan hash di DB
         const passwordCocok = await bcrypt.compare(password, user.password);
         if (!passwordCocok) {
             return res.status(401).json({ error: 'Kata sandi salah!' });
@@ -135,7 +126,7 @@ app.post('/api/users/login', async (req, res) => {
             }
         });
     } catch (err) {
-        console.error(err);
+        console.error('PostgreSQL Error (Login):', err);
         res.status(500).json({ error: 'Terjadi kesalahan pada server database' });
     }
 });
@@ -144,9 +135,6 @@ app.get('/api/stok', async (req, res) => {
     const { komunitas } = req.query;
 
     try {
-        const pool = await sql.connect(dbConfig);
-        const request = pool.request();
-
         let queryStr = `
             SELECT 
                 s.id, 
@@ -165,23 +153,25 @@ app.get('/api/stok', async (req, res) => {
             INNER JOIN users u ON s.user_id = u.id
         `;
 
+        const values = [];
+
+        // 5. Penanganan query dinamis untuk PostgreSQL
         if (komunitas) {
-            request.input('komunitas', sql.VarChar, komunitas);
-            queryStr += ` WHERE u.komunitas = @komunitas`;
+            queryStr += ` WHERE u.komunitas = $1`;
+            values.push(komunitas);
         }
 
         queryStr += ` ORDER BY s.id DESC`;
 
-        const result = await request.query(queryStr);
-        res.json(result.recordset);
+        const result = await pool.query(queryStr, values);
+        res.json(result.rows);
     } catch (error) {
-        console.error('SQL Server GET Error:', error);
+        console.error('PostgreSQL GET Error:', error);
         res.status(500).json({ error: 'Gagal mengambil data stok dari database' });
     }
 });
 
 app.post('/api/stok/add', verifikasiToken, async (req, res) => {
-    // KEAMANAN TINGKAT TINGGI: id user langsung dibaca dari Token JWT yang sah, bukan tembakan manual!
     const user_id = req.user.id;
     const { nama_barang, jumlah, satuan, keterangan, tipe } = req.body;
 
@@ -190,23 +180,25 @@ app.post('/api/stok/add', verifikasiToken, async (req, res) => {
     }
 
     try {
-        const request = new sql.Request();
-        request.input('user_id', sql.Int, user_id);
-        request.input('nama_barang', sql.VarChar, nama_barang);
-        request.input('jumlah', sql.Int, jumlah);
-        request.input('satuan', sql.VarChar, satuan || 'Pcs');
-        request.input('tipe', sql.VarChar, tipe || 'BUTUH_STOK');
-        request.input('status', sql.VarChar, 'TERSEDIA');
-        request.input('keterangan', sql.NVarChar, keterangan || null);
-
-        await request.query(`
+        const queryStr = `
             INSERT INTO stok_requests (user_id, nama_barang, jumlah, satuan, tipe, status, keterangan) 
-            VALUES (@user_id, @nama_barang, @jumlah, @satuan, @tipe, @status, @keterangan)
-        `);
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `;
+        const values = [
+            user_id,
+            nama_barang,
+            jumlah,
+            satuan || 'Pcs',
+            tipe || 'BUTUH_STOK',
+            'TERSEDIA',
+            keterangan || null
+        ];
+
+        await pool.query(queryStr, values);
 
         res.json({ success: true, message: 'Data stok berhasil disimpan ke database!' });
     } catch (error) {
-        console.error('SQL Server Error:', error);
+        console.error('PostgreSQL Insert Error:', error);
         res.status(500).json({ error: 'Gagal menyimpan data ke database' });
     }
 });
@@ -216,15 +208,12 @@ app.put('/api/stok/:id/status', verifikasiToken, async (req, res) => {
     const { status } = req.body;
 
     try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('id', sql.Int, id)
-            .input('status', sql.VarChar, status || 'SELESAI')
-            .query('UPDATE stok_requests SET status = @status WHERE id = @id');
+        const queryStr = 'UPDATE stok_requests SET status = $1 WHERE id = $2';
+        await pool.query(queryStr, [status || 'SELESAI', id]);
 
         res.json({ success: true, message: 'Status kiriman stok berhasil diperbarui!' });
     } catch (error) {
-        console.error('SQL Update Status Error:', error);
+        console.error('PostgreSQL Update Status Error:', error);
         res.status(500).json({ error: 'Gagal memperbarui status di database' });
     }
 });
@@ -233,14 +222,11 @@ app.delete('/api/stok/:id', verifikasiToken, async (req, res) => {
     const { id } = req.params;
 
     try {
-        const pool = await sql.connect(dbConfig);
-        await pool.request()
-            .input('id', sql.Int, id)
-            .query('DELETE FROM stok_requests WHERE id = @id');
+        await pool.query('DELETE FROM stok_requests WHERE id = $1', [id]);
 
         res.json({ success: true, message: 'Kiriman stok berhasil dihapus dari database!' });
     } catch (error) {
-        console.error('SQL Delete Error:', error);
+        console.error('PostgreSQL Delete Error:', error);
         res.status(500).json({ error: 'Gagal menghapus data dari database' });
     }
 });
