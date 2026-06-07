@@ -1,5 +1,3 @@
-@theme {
-    /* Biarkan kosong atau isi jika ada konfigurasi tema kustom */
-}
-
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
