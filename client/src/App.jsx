@@ -1,39 +1,10 @@
-import React, { useState, useEffect } from "react"; // Tambahkan useEffect di sini
+import React, { useState, useEffect } from "react";
 import { Plus } from "lucide-react";
 import Header from "./components/Header";
 import Auth from "./components/Auth";
 import FeedItem from "./components/FeedItem";
 import RequestModal from "./components/RequestModal";
 import Footer from "./components/Footer";
-
-const INITIAL_FEEDS = [
-    {
-        id: "1",
-        user_id: "user_lain",
-        whatsapp: "08123456789",
-        nama_warung: "Warung Berkat Sembako",
-        nama_barang: "Gas LPG 3kg",
-        jumlah: 5,
-        satuan: "Tabung",
-        keterangan: "Sembako drop terlambat, konsumen nyariin. Boleh pinjam dulu jaminan aman.",
-        tipe: "BUTUH_STOK",
-        status: "TERSEDIA",
-        created_at: new Date(Date.now() - 1000 * 60 * 20).toISOString(),
-    },
-    {
-        id: "2",
-        user_id: "user_lain_2",
-        whatsapp: "08987654321",
-        nama_warung: "Toko Kelontong Jaya",
-        nama_barang: "Es Batu Kristal",
-        jumlah: 12,
-        satuan: "Kantong",
-        keterangan: "Kelebihan stok kiriman dari agen, freezer ga muat. Silakan tebus murah.",
-        tipe: "KELEBIHAN_STOK",
-        status: "TERSEDIA",
-        created_at: new Date(Date.now() - 1000 * 60 * 120).toISOString(),
-    }
-];
 
 export default function App() {
     const [currentUser, setCurrentUser] = useState(() => {
@@ -44,35 +15,48 @@ export default function App() {
         return localStorage.getItem("token") || null;
     });
 
-    // Set default awal ke array kosong, nanti kita isi dari database
     const [feeds, setFeeds] = useState([]);
     const [activeFilter, setActiveFilter] = useState('SEMUA');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    // ==========================================
-    // FUNGSI BARU: Ambil data dari Database (GET)
-    // ==========================================
+    // 1. PERBAIKAN: Menambahkan Authorization Header untuk mengambil data stok
     const fetchFeeds = async () => {
-        try {
-            // Sesuaikan url endpoint GET ini dengan yang ada di server backend-mu (misal: /api/stok)
-            const response = await fetch('http://127.0.0.1:5000/api/stok');
-            if (!response.ok) throw new Error('Gagal mengambil data dari database.');
+        if (!currentUser || !currentUser.komunitas) return;
 
+        try {
+            const komunitasUser = currentUser.komunitas;
+
+            const response = await fetch(`http://127.0.0.1:5000/api/stok?komunitas=${encodeURIComponent(komunitasUser)}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}` // 🛡️ Kirim token agar diizinkan melihat data
+                }
+            });
             const data = await response.json();
-            setFeeds(data); // Simpan data dari database ke state
+
+            setFeeds(data);
         } catch (error) {
-            console.error("Gagal load database, beralih ke dummy:", error);
-            setFeeds(INITIAL_FEEDS); // Backup jika backend belum siap / error
+            console.error("Gagal memuat data stok:", error);
         }
     };
 
-    // Jalankan fungsi fetchFeeds otomatis saat aplikasi dibuka / di-refresh
+    // useEffect untuk Polling (Auto-Refresh setiap 10 detik)
     useEffect(() => {
-        if (currentUser) {
+        if (currentUser && currentUser.komunitas) {
             fetchFeeds();
+
+            const intervalId = setInterval(() => {
+                fetchFeeds();
+            }, 10000);
+
+            return () => {
+                clearInterval(intervalId);
+            };
+        } else {
+            setFeeds([]);
         }
-    }, [currentUser]);
+    }, [currentUser, token]); // Ditambahkan 'token' sebagai dependency agar sinkron saat login ulang
 
     const handleAuthSuccess = (user, userToken) => {
         setCurrentUser(user);
@@ -87,23 +71,26 @@ export default function App() {
     };
 
     const handleCreateFeed = async () => {
-        // Setelah sukses input dari modal, langsung panggil fetchFeeds() 
-        // supaya data terbaru beserta ID asli dari database langsung turun ke halaman utama
         fetchFeeds();
     };
 
-    // Fungsi untuk handle hapus data secara permanen
+    // 2. PERBAIKAN: Menambahkan Authorization Header untuk menghapus data stok
     const handleDelete = async (id) => {
         if (window.confirm("Apakah Anda yakin ingin menghapus kiriman stok ini?")) {
             try {
-                const response = await fetch(`http://localhost:5000/api/stok/${id}`, {
-                    method: 'DELETE'
+                const response = await fetch(`http://127.0.0.1:5000/api/stok/${id}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${token}` // 🛡️ Kirim token agar diizinkan menghapus
+                    }
                 });
 
                 if (response.ok) {
-                    // Update state frontend agar laporannya langsung hilang dari layar
                     setFeeds(feeds.filter(feed => feed.id !== id));
                     alert("Data berhasil dihapus!");
+                } else {
+                    const data = await response.json();
+                    alert(data.error || "Gagal menghapus data.");
                 }
             } catch (error) {
                 console.error("Gagal menghapus data:", error);
@@ -111,30 +98,33 @@ export default function App() {
         }
     };
 
-    // Fungsi untuk handle ceklist (mengubah status menjadi SELESAI)
+    // 3. PERBAIKAN: Menambahkan Authorization Header untuk mengubah status stok
     const handleToggleStatus = async (id, currentStatus) => {
         const newStatus = currentStatus === 'SELESAI' ? 'TERSEDIA' : 'SELESAI';
 
         try {
-            const response = await fetch(`http://localhost:5000/api/stok/${id}/status`, {
+            const response = await fetch(`http://127.0.0.1:5000/api/stok/${id}/status`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}` // 🛡️ Kirim token agar diizinkan mengubah status
+                },
                 body: JSON.stringify({ status: newStatus })
             });
 
             if (response.ok) {
-                // Update state frontend agar warna komponen langsung berubah secara realtime
                 setFeeds(feeds.map(feed => feed.id === id ? { ...feed, status: newStatus } : feed));
+            } else {
+                const data = await response.json();
+                alert(data.error || "Gagal memperbarui status.");
             }
         } catch (error) {
             console.error("Gagal memperbarui status:", error);
         }
     };
 
-    // ✅ KODE BARU (Bebas Spasi Gaib & Anti-Gagal)
     const filteredFeeds = feeds.filter(feed => {
         if (activeFilter === 'SEMUA') return true;
-        // ?.trim() berfungsi menghapus spasi kosong di awal/akhir teks dari database jika ada
         return feed.tipe?.trim() === activeFilter;
     });
 
@@ -199,7 +189,7 @@ export default function App() {
 
             {isModalOpen && (
                 <RequestModal
-                    currentUser={currentUser} // <--- PERUBAHAN: Kirim data user yang sedang login ke modal
+                    currentUser={currentUser}
                     onClose={() => setIsModalOpen(false)}
                     onSubmit={handleCreateFeed}
                     isSubmitting={isSubmitting}

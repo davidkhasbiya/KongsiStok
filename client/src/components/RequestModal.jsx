@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { X, Send, Sparkles } from 'lucide-react';
 
-// PERBAIKAN: Terima props 'currentUser' dari App.jsx
+// Props 'currentUser' diterima dari App.jsx
 export default function RequestModal({ currentUser, onClose, onSubmit, isSubmitting }) {
   const [tipe, setTipe] = useState('BUTUH_STOK');
   const [namaBarang, setNamaBarang] = useState('');
@@ -13,14 +13,21 @@ export default function RequestModal({ currentUser, onClose, onSubmit, isSubmitt
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // 1. PERBAIKAN FITUR AI: Menambahkan Header Authorization JWT
   const handleAiParse = async () => {
     if (!aiText.trim()) return alert("Ketik cerita kendala stok warungmu terlebih dahulu!");
     setIsAiLoading(true);
 
     try {
+      // Mengambil token yang disimpan di localStorage setelah login berhasil
+      const token = localStorage.getItem('token');
+
       const response = await fetch('http://127.0.0.1:5000/api/ai/parse', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // 🛡️ Mengirimkan token ke backend
+        },
         body: JSON.stringify({ text: aiText })
       });
 
@@ -38,6 +45,7 @@ export default function RequestModal({ currentUser, onClose, onSubmit, isSubmitt
     }
   };
 
+  // 2. PERBAIKAN KIRIM STOK: Menambahkan Header Authorization JWT
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -45,12 +53,17 @@ export default function RequestModal({ currentUser, onClose, onSubmit, isSubmitt
     setIsSaving(true);
 
     try {
+      // Mengambil token yang disimpan di localStorage setelah login berhasil
+      const token = localStorage.getItem('token');
+
       const response = await fetch('http://127.0.0.1:5000/api/stok/add', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}` // 🛡️ Mengirimkan token ke backend
+        },
         body: JSON.stringify({
-          user_id: currentUser?.id || 1, // <--- PERBAIKAN: Menggunakan ID asli dari user yang login
-          tipe: tipe,                    // <--- PERBAIKAN: Sekarang variabel tipe ikut dikirim ke DB!
+          tipe: tipe,
           nama_barang: namaBarang,
           jumlah: jumlah,
           satuan: satuan,
